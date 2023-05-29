@@ -10,7 +10,7 @@ This package implements solving eigenvalues of symmetric Toeplitz matrices in lo
 Exports the function:
 
 ```julia
-vals, vecs = compute_Toeplitz_Eigen(n, vc, vr)
+vals, vecs = compute_Toeplitz_Eigen(n, vc)
 ```
 
-where `n` is the size of the matrix, `vc` is the first column, `vr` is the first row.
+where `n` is the size of the matrix, `vc` is the first column.

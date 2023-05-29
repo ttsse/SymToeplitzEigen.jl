@@ -3,6 +3,11 @@ uuid = "3d553849-0536-4eb2-b845-3191e399a7ed"
 authors = ["David Meadon"]
 version = "1.0.0-DEV"
 
+[deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+IterativeRefinement = "bcb6b82e-7479-5933-8c8e-2e0b909ee6a3"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
 [compat]
 julia = "1.9"
 
