@@ -1,0 +1,3 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+ToeplitzCUDA_Eigen_Refinement = "3d553849-0536-4eb2-b845-3191e399a7ed"
