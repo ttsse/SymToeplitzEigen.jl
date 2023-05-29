@@ -4,7 +4,7 @@ CurrentModule = ToeplitzCUDA_Eigen_Refinement
 
 # ToeplitzCUDA_Eigen_Refinement
 
-Documentation for [ToeplitzCUDA_Eigen_Refinement](https://github.com/Dedavond/ToeplitzCUDA_Eigen_Refinement.jl).
+Documentation for [ToeplitzCUDA_Eigen_Refinement](https://github.com/ttsse/ToeplitzCUDA_Eigen_Refinement.jl).
 
 ```@index
 ```
