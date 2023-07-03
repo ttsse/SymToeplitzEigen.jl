@@ -1,7 +1,3 @@
-# using IterativeRefinement
-using LinearAlgebra
-using SharedArrays
-
 """
     Refinement(Tn, vals, vecs, Refinement_precision, Max_iter, tol_fact)
 

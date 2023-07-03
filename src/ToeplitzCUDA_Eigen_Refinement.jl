@@ -1,6 +1,5 @@
 module ToeplitzCUDA_Eigen_Refinement
 
-
 using LinearAlgebra
 
 include("refinement.jl")

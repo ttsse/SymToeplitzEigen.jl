@@ -1,5 +1,3 @@
-using LinearAlgebra
-
 """
     toeplitz(n, vc, vr)
 
