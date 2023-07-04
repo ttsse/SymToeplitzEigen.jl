@@ -37,7 +37,7 @@ function Refinement(A :: Array{T, 2}, Vals :: Array{T, 1}, Vecs :: Array{T, 2}, 
 
         # Pre-allocate
         B = DT.(A)
-        Btmp = zeros(T, n, n)
+        Btmp = zeros(Float64, n, n)
         r = DT.(zeros(Int64,n))
         y = DT.(zeros(Int64,n))
         ys = DT(0)
@@ -71,14 +71,14 @@ function Refinement(A :: Array{T, 2}, Vals :: Array{T, 1}, Vecs :: Array{T, 2}, 
                 # Since Btmp is of a less accurate data type, after the second iteration no need to do this update
                 if iter < 3 
                     Btmp .= A
-                    Btmp[diagind(Btmp)] .-= T.(λ) 
+                    Btmp[diagind(Btmp)] .-= Float64.(λ) 
                     Btmp[:,s] .= x
                     Btmp[:,s] *= -1
                     FB = lu!(Btmp)
                 end
 
                 # Solve Btmp*y = r
-                my_vec_setvalue_prom!(n, y, FB \ T.(r))
+                my_vec_setvalue_prom!(n, y, FB \ Float64.(r))
                 
                 my_vec_setvalue!(n, yp, y)
 
@@ -89,7 +89,7 @@ function Refinement(A :: Array{T, 2}, Vals :: Array{T, 1}, Vecs :: Array{T, 2}, 
                 x += yp
                 λ += ys
 
-                # Estimate error
+                # Cheap estimate error
                 ee = rand(1:n)
                 err_norm = abs((dot(view(A, ee, :), x) - λ*x[ee])/(λ*x[ee]))
             end

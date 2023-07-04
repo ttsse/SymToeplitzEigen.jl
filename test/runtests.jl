@@ -60,6 +60,18 @@ end
     @test norm(abs.(normalize(vecs)) - abs.(normalize(nvecs)), Inf) < 100*eps(Float64) 
 end
 
+# Check different low precision still approach same solution
+@testset "Low precision check" begin
+    v = [2, -1]
+    n = 100
+    T = Float64
+    A = SymToeplitzEigen.toeplitz(n, T.(v), T.(v))
+    vals32, vecs32 = EigenRef(n, v, Low_pres_type = Float32)
+    vals64, vecs64 = EigenRef(n, v, Low_pres_type = Float64)
+
+    @test norm(maximum([norm((A - vals32[kk]I)*vecs32[:,kk], Inf) for kk in 1:n]) - maximum([norm((A - vals64[kk]I)*vecs64[:,kk], Inf) for kk in 1:n]), Inf) < 1e5*eps(BigFloat) 
+end
+
 # Check using both low precision types that we approach the correct eigenvalues
 # We check using the Laplace matrix which has known eigenvalues and eigenvectors
 @testset "Towards exactness check" begin
@@ -92,5 +104,5 @@ end
     tvecs = sin.([1:n;]*tn') #exact eigenvectors
 
     @test norm(tvals - nvals, Inf) < 1e5*eps(BigFloat)
-    @test norm(maximum([norm((A - tvals[kk]I)*tvecs[:,kk], Inf) for kk in n]) - maximum([norm((A - nvals[kk]I)*nvecs[:,kk], Inf) for kk in n]), Inf) < 1e5*eps(BigFloat)
+    @test norm(maximum([norm((A - tvals[kk]I)*tvecs[:,kk], Inf) for kk in 1:n]) - maximum([norm((A - nvals[kk]I)*nvecs[:,kk], Inf) for kk in 1:n]), Inf) < 1e5*eps(BigFloat)
 end

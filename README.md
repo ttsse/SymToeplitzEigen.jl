@@ -1,13 +1,25 @@
 # SymToeplitzEigen
 
+<div align="center">
+
+| **Build Status**                                                                                |
+|:-----------------------------------------------------------------------------------------------:|
+| [![CI](https://github.com/ttsse/SymToeplitzEigen.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/ttsse/SymToeplitzEigen.jl/actions/workflows/CI.yml) |
+
+</div>
+
+
+
+
+
 ## Installation
 
 In Julia 1.9
-```julia-repl
+```julia
 pkg> add https://github.com/ttsse/SymToeplitzEigen.jl
 ```
 or
-```julia-repl
+```julia
 julia> using Pkg
 julia> Pkg.add("https://github.com/ttsse/SymToeplitzEigen.jl")
 ```
@@ -61,14 +73,27 @@ where `n` is the size of the matrix, `vc` is the first column of symmetric Toepl
 ___
 ## Example
 
+```julia
+julia> using SymToeplitzEigen
+
+julia> v = rand(10);
+
+julia> A = SymToeplitzEigen.toeplitz(100, v, v);
+
+julia> nvals, nvecs = EigenRef(A);
+
+julia> maximum([norm((A - nvals[kk]I)*nvecs[:,kk]) for kk in 1:100])
+4.631891758490566668625685607982804238714754608769043250856766307722715870331231e-75
+```
+
 ___
 ## Testing
 After installation, run
-```julia-repl
+```julia
 pkg> test SymToeplitzEigen
 ```
 or
-```julia-repl
+```julia
 julia> using Pkg
 julia> Pkg.test("SymToeplitzEigen")
 ```
