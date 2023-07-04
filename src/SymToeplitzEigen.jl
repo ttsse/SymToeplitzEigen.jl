@@ -1,8 +1,10 @@
 module SymToeplitzEigen
 
 using LinearAlgebra
+using CUDA
 
 include("refinement.jl")
+include("Cudacompute.jl")
 include("helper.jl")
 
 export Eigen
@@ -38,7 +40,7 @@ function Eigen(n :: Integer, vc :: Array; Low_pres_type :: Type = Float32, Refin
 end
 
 function _Eigen(Tn :: Array{T}, Refinement_precision :: Integer, Max_iter :: Integer, tol_fact :: Integer) where {T <: Union{Float64, Float32}}
-    vals, vecs = eigen(Tn)
+    vals, vecs = Compute_CUDA_Eigen(Tn)
     return Refinement(Tn, vals, vecs, Refinement_precision, Max_iter, tol_fact)
 end
 

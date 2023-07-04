@@ -1,6 +1,6 @@
 # SymToeplitzEigen
 
-This package implements solving eigenvalues and eigenvectors of symmetric Toeplitz-like matrices in low precision and then using Iterative Refinement (inspired by [IterativeRefinement.jl](https://github.com/RalphAS/IterativeRefinement.jl)) in parallel to improve the accuracy.
+This package implements solving eigenvalues and eigenvectors of symmetric Toeplitz-like matrices in low precision on the GPU (using [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl)) and then using Iterative Refinement (inspired by [IterativeRefinement.jl](https://github.com/RalphAS/IterativeRefinement.jl)) in parallel to improve the accuracy.
 
 ## Exported functions:
 
