@@ -89,7 +89,7 @@ function Refinement(A :: Array{T, 2}, Vals :: Array{T, 1}, Vecs :: Array{T, 2}, 
                 x += yp
                 λ += ys
 
-                # Estimate error
+                # Cheap estimate error
                 ee = rand(1:n)
                 err_norm = abs((dot(view(A, ee, :), x) - λ*x[ee])/(λ*x[ee]))
             end

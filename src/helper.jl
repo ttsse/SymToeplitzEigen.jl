@@ -27,7 +27,7 @@ Normalises the input array `x` wrt the maximum norm (normalised so that maximal 
         end
     end
     # my_div_vec!(n, x, xm)
-    x ./ xm
+    x ./= xm
     return s
 end
 
@@ -77,12 +77,12 @@ end
 """
     my_vec_setvalue_prom!(n, A, B)
 
-Sets the vector `A` equal to the elements of vector `B` where we promote the type from Float64 to BigFloat.
+Sets the vector `A` equal to the elements of vector `B` where we promote the type from `Float64` to `BigFloat`.
 """
-@inline function my_vec_setvalue_prom!(n::Integer, A :: StridedVector{BigFloat}, B :: StridedVector{Float64})
+@inline function my_vec_setvalue_prom!(n::Integer, A :: StridedVector{BigFloat}, B :: StridedVector{T}) where {T <: Union{Float32, Float64}}
     @inbounds begin
         for kk in 1:n
-            setvalue_F64!(A[kk], B[kk])
+            setvalue_F!(A[kk], B[kk])
         end
     end
 end
@@ -103,7 +103,7 @@ end
 """
     my_fma!(w, z, x, y)
 
-Non-allocating fma (`w = z + x*y`) for BigFloats.
+Non-allocating fma (`w = z + x*y`) for `BigFloat`.
 """
 function my_fma!(w::BigFloat, z::BigFloat, x::BigFloat, y::BigFloat)
     ccall(("mpfr_fma",Base.MPFR.libmpfr), Int32, (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, Base.MPFR.MPFRRoundingMode), w, x, y, z, Base.MPFR.MPFRRoundNearest)
@@ -112,7 +112,7 @@ end
 """
     my_add!(z, y, x)
 
-Non-allocating add (`z = x + y`) for BigFloats.
+Non-allocating add (`z = x + y`) for `BigFloat`.
 """
 function my_add!(z::BigFloat, x::BigFloat, y::BigFloat)
     ccall(("mpfr_add",Base.MPFR.libmpfr), Int32, (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, Base.MPFR.MPFRRoundingMode), z, x, y, Base.MPFR.MPFRRoundNearest)
@@ -121,7 +121,7 @@ end
 """
     my_div!(z, y, x)
 
-Non-allocating div (`z = x / y`) for BigFloats.
+Non-allocating div (`z = x / y`) for `BigFloat`.
 """
 function my_div!(z::BigFloat, x::BigFloat, y::BigFloat)
     ccall(("mpfr_div",Base.MPFR.libmpfr), Int32, (Ref{BigFloat}, Ref{BigFloat}, Ref{BigFloat}, Base.MPFR.MPFRRoundingMode), z, x, y, Base.MPFR.MPFRRoundNearest)
@@ -139,7 +139,7 @@ end
 """
     setzero!(z)
 
-Sets the value of `z` equal to 0
+Sets the value of `z` equal to 0.
 """
 function setzero!(z::BigFloat)
     ccall(("mpfr_set_ui", Base.MPFR.libmpfr), Int32, (Ref{BigFloat}, Culong, Base.MPFR.MPFRRoundingMode), z, 0, Base.MPFR.MPFRRoundNearest)
@@ -148,17 +148,21 @@ end
 """
     setvalue_BF!(z, x)
 
-Sets the value of `z` equal to `x` with both BigFloat
+Sets the value of `z` equal to `x` with both `BigFloat`.
 """
 function setvalue_BF!(z::BigFloat, x::BigFloat)
     ccall(("mpfr_set", Base.MPFR.libmpfr), Int32, (Ref{BigFloat}, Ref{BigFloat}, Base.MPFR.MPFRRoundingMode), z, x, Base.MPFR.MPFRRoundNearest)
 end
 
 """
-    setvalue_F64!(z, x)
+    setvalue_F!(z, x)
 
-Sets the value of `z` equal to `x` with `x` being promoted from Float64 to BigFloat
+Sets the value of `z` equal to `x` with `x` being promoted from `Float32` (or `Float64`) to `BigFloat`.
 """
-function setvalue_F64!(z::BigFloat, x::Float64)
+function setvalue_F!(z::BigFloat, x::Float32)
+    ccall(("mpfr_set_d", Base.MPFR.libmpfr), Int32, (Ref{BigFloat}, Cfloat, Base.MPFR.MPFRRoundingMode), z, x, Base.MPFR.MPFRRoundNearest)
+end
+
+function setvalue_F!(z::BigFloat, x::Float64)
     ccall(("mpfr_set_d", Base.MPFR.libmpfr), Int32, (Ref{BigFloat}, Cdouble, Base.MPFR.MPFRRoundingMode), z, x, Base.MPFR.MPFRRoundNearest)
 end
