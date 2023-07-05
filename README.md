@@ -74,6 +74,8 @@ ___
 ## Example
 
 ```julia
+julia> using LinearAlgebra
+
 julia> using SymToeplitzEigen
 
 julia> v = rand(10);
