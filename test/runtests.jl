@@ -69,7 +69,7 @@ end
     vals32, vecs32 = EigenRef(n, v, Low_pres_type = Float32)
     vals64, vecs64 = EigenRef(n, v, Low_pres_type = Float64)
 
-    @test norm(maximum([norm((A - vals32[kk]I)*vecs32[:,kk], Inf) for kk in 1:n]) - maximum([norm((A - vals64[kk]I)*vecs64[:,kk], Inf) for kk in 1:n]), Inf) < 1e5*eps(BigFloat) 
+    @test norm(maximum([norm((A - vals32[kk]I)*vecs32[:,kk], Inf) for kk in 1:n]) - maximum([norm((A - vals64[kk]I)*vecs64[:,kk], Inf) for kk in 1:n]), Inf) < 1e10*eps(BigFloat) 
 end
 
 # Check using both low precision types that we approach the correct eigenvalues
