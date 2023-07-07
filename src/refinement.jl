@@ -36,7 +36,7 @@ function Refinement(A :: Array{T, 2}, Vals :: Array{T, 1}, Vecs :: Array{T, 2}, 
         
 
         # Pre-allocate
-        B = DT.(A)
+        B = PermutedDimsArray(DT.(A), (2, 1))
         Btmp = zeros(Float64, n, n)
         r = DT.(zeros(Int64,n))
         y = DT.(zeros(Int64,n))

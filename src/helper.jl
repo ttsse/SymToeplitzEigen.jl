@@ -49,7 +49,7 @@ end
 
 Computes the matrix vector multiplication `R = -A*B` where `A` is a matrix and `B` is a vector.
 """
-@inline function my_neg_mat_vec_mul!(n::Integer, R :: StridedVector{BigFloat}, A :: StridedMatrix{BigFloat}, B :: StridedVector{BigFloat})
+@inline function my_neg_mat_vec_mul!(n::Integer, R :: StridedVector{BigFloat}, A :: AbstractArray{BigFloat}, B :: StridedVector{BigFloat})
     @inbounds begin
         for kk in 1:n
             setzero!(R[kk])
@@ -66,7 +66,7 @@ end
 
 Adds the value `val` to the diagonal elements of the matrix `A` of length `n`.
 """
-@inline function my_add_diag_elements!(n::Integer, A :: StridedMatrix{BigFloat}, val :: BigFloat)
+@inline function my_add_diag_elements!(n::Integer, A :: AbstractArray{BigFloat}, val :: BigFloat)
     @inbounds begin
         for kk in 1:n
             my_add!(A[kk, kk], A[kk, kk], val)
