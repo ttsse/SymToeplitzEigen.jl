@@ -18,6 +18,7 @@ Computes the eigenvalues (and vectors) of the symmetric Toeplitz matrix `Tn`. Th
 Convenience function that will construct the symmetric Toeplitz matrix of size n x n with the first column given by vector vc and then return the computed eigenvalues and eigenvectors.
 """
     function EigenRef(Tn :: Array{T}; Low_pres_type :: Type = Float64, Refinement_precision :: Integer = 256, Max_iter :: Integer = 100, tol_fact :: Integer = 1) where {T <: Union{Float64, Float32}}
+        @assert issymmetric(Tn) "Given matrix must be symmetric"
         return _Eigen(Tn, Refinement_precision, Max_iter, tol_fact)
     end
 
