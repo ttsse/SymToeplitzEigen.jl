@@ -1,102 +1,83 @@
 """
-    Refinement(Tn, vals, vecs, Refinement_precision, Max_iter, tol_fact)
+    Refinement(Tn, vals, vecs, Refinement_precision, Max_iter, tol_fact; track_errors=false)
 
-Improves the accuracy of the eigenvalues `vals` (and vectors `vecs`) of `Tn` up to a precision given by `tol_fact` * eps(BigFloat) where BigFloat will use `Refinement_precision` bits, with a maximum of `Max_iter` iterations.
+Improves the accuracy of the eigenvalues `vals` (and vectors `vecs`) of `Tn` up to a precision
+given by `tol_fact * eps(BigFloat)` where BigFloat will use `Refinement_precision` bits,
+with a maximum of `Max_iter` iterations.
+
+If `track_errors=true`, also returns a dictionary of error histories for each eigenvalue.
 """
-function Refinement(A :: Array{T, 2}, Vals :: Array{T, 1}, Vecs :: Array{T, 2}, Refinement_precision :: Integer, Max_iter :: Integer, tol_fact :: Integer) where T
+function Refinement(A::Array{T,2}, Vals::Array{T,1}, Vecs::Array{T,2},
+                    Refinement_precision::Integer, Max_iter::Integer, tol_fact::Integer;
+                    track_errors::Bool=false) where T
     setprecision(BigFloat, Refinement_precision)
     DT = BigFloat
 
     m = length(Vals)
-    n = size(Vecs)[1]
+    n = size(Vecs, 1)
     refinedVals = DT.(zeros(Int64,n))
     refinedVecs = DT.(zeros(Int64,n,n))
 
     tol1 = tol_fact * eps(DT)
 
-    # Prepare for multi-threading
-    num_threads = Threads.nthreads()
-    len, rem = divrem(m, num_threads)
-    
-    Threads.@threads for pp = 1:num_threads
+    error_history = track_errors ? Dict{Int, Vector{Float64}}() : nothing
 
-        f = 1 + ((pp-1) * len)
-        l = f + len - 1
+    Threads.@threads for ii in 1:m
+        λ = DT(Vals[ii])
+        x = DT.(@view Vecs[:, ii])
+        s = normalize_Infnorm!(x)
 
-        if rem > 0
-            if pp <= rem
-                f = f + (pp-1)
-                l = l + pp
-            else
-                f = f + rem
-                l = l + rem
-            end
-        end
+        err_norm = DT(Inf)
+        iter = 0
+        FB = nothing
 
-        
+        local_errors = track_errors ? Float64[] : nothing
 
-        # Pre-allocate
-        B = PermutedDimsArray(DT.(A), (2, 1))
+        B = PermutedDimsArray(DT.(A), (2,1))
         Btmp = zeros(Float64, n, n)
         r = DT.(zeros(Int64,n))
         y = DT.(zeros(Int64,n))
         ys = DT(0)
         yp = DT.(zeros(Int64,n))
-        
 
-        for ii in f:l
+        while err_norm > tol1 && iter < Max_iter
+            iter += 1
 
-            λ = DT(Vals[ii])
-            x = DT.(@view Vecs[:, ii])
+            my_add_diag_elements!(n, B, -1*λ)
+            my_neg_mat_vec_mul!(n, r, B, x)
+            my_add_diag_elements!(n, B, λ)
 
-            s = normalize_Infnorm!(x)
-
-            iter = 0
-
-            err_norm = DT(Inf)
-            FB = nothing
-
-            while err_norm > tol1 && iter < Max_iter
-                iter += 1
-                
-                # We compute `r = (B - λI)x` so first we will remove λ from the diagonal and then re-add it after 
-                # the computation so we can reuse the same B in all iterations without needing to allocate
-                my_add_diag_elements!(n, B, -1*λ)
-                
-                # Compute Residual
-                my_neg_mat_vec_mul!(n, r, B, x)
-
-                my_add_diag_elements!(n, B, λ)
-
-                # Since Btmp is of a less accurate data type, after the second iteration no need to do this update
-                if iter < 3 
-                    Btmp .= A
-                    Btmp[diagind(Btmp)] .-= Float64.(λ) 
-                    Btmp[:,s] .= x
-                    Btmp[:,s] *= -1
-                    FB = lu!(Btmp)
-                end
-
-                # Solve Btmp*y = r
-                my_vec_setvalue_prom!(n, y, FB \ Float64.(r))
-                
-                my_vec_setvalue!(n, yp, y)
-
-                ys = y[s]
-                yp[s] = zero(DT)
-                
-                # Update
-                x += yp
-                λ += ys
-
-                # Cheap estimate error
-                ee = rand(1:n)
-                err_norm = abs((dot(view(A, ee, :), x) - λ*x[ee])/(λ*x[ee]))
+            if iter < 3
+                Btmp .= A
+                Btmp[diagind(Btmp)] .-= Float64(λ)
+                Btmp[:,s] .= x
+                Btmp[:,s] *= -1
+                FB = lu!(Btmp)
             end
-            refinedVals[ii] = λ
-            refinedVecs[:,ii] .= x
 
+            my_vec_setvalue_prom!(n, y, FB \ Float64.(r))
+            my_vec_setvalue!(n, yp, y)
+
+            ys = y[s]
+            yp[s] = zero(DT)
+
+            x += yp
+            λ += ys
+
+            ee = rand(1:n)
+            err_norm = abs((dot(view(A, ee, :), x) - λ*x[ee])/(λ*x[ee]))
+
+            if track_errors
+                push!(local_errors, Float64(err_norm))
+            end
+        end
+
+        refinedVals[ii] = λ
+        refinedVecs[:,ii] .= x
+        if track_errors
+            error_history[ii] = local_errors
         end
     end
-    return refinedVals, refinedVecs
+
+    return track_errors ? (refinedVals, refinedVecs, error_history) : (refinedVals, refinedVecs)
 end

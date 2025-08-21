@@ -99,3 +99,28 @@ or
 julia> using Pkg
 julia> Pkg.test("SymToeplitzEigen")
 ```
+
+___
+## Plotting convergence of refinement
+
+You can also track the convergence of refinement errors:
+
+```julia
+julia> using SymToeplitzEigen, LinearAlgebra, Plots
+
+julia> n = 20;
+
+julia> v = [2, -1];
+
+julia> Tn = SymToeplitzEigen.toeplitz(n, Float64.(v), Float64.(v));
+
+julia> vals, vecs = eigen(Tn);
+
+julia> vals_ref, vecs_ref, errors = SymToeplitzEigen.Refinement(Tn, vals, vecs, 256, 20, 1; track_errors=true);
+
+julia> err_hist = errors[1];
+
+julia> plot(1:length(err_hist), err_hist, yscale=:log10, xlabel="Iteration", ylabel="Error norm", title="Convergence of refinement", lw=2, marker=:o);
+
+```
+![Convergence plot](convergence.png)
