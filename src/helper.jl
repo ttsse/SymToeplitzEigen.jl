@@ -15,7 +15,7 @@ end
 
 Normalises the input array `x` wrt the maximum norm (normalised so that maximal value in the array is 1) and returns the index of the maximal value.
 """
-@inline function normalize_Infnorm!(x :: Array)
+@inline function normalize_Infnorm!(x :: AbstractVector)
     n = length(x)
     s=1
     xm = abs(x[1])
@@ -62,6 +62,62 @@ Computes the matrix vector multiplication `R = -A*B` where `A` is a matrix and `
 end
 
 """
+    my_neg_sym_toeplitz_mat_vec!(n, R, c, x)
+
+Computes `R = -T*x` for a symmetric Toeplitz matrix `T` represented by
+its first column `c`. If `length(c) < n`, trailing diagonals are treated as zero.
+"""
+@inline function my_neg_sym_toeplitz_mat_vec!(n::Integer, R :: StridedVector{BigFloat}, c :: StridedVector{BigFloat}, x :: StridedVector{BigFloat})
+    m = length(c)
+    @inbounds begin
+        for kk in 1:n
+            setzero!(R[kk])
+            for jj in 1:n
+                idx = abs(kk - jj) + 1
+                if idx <= m
+                    my_fma!(R[kk], R[kk], c[idx], x[jj])
+                end
+            end
+            neg!(R[kk])
+        end
+    end
+end
+
+"""
+    my_fill_sym_toeplitz!(n, A, c)
+
+Fills matrix `A` as an `n x n` symmetric Toeplitz matrix from first column `c`.
+If `length(c) < n`, trailing diagonals are filled with zeros.
+"""
+@inline function my_fill_sym_toeplitz!(n::Integer, A :: AbstractMatrix{Float64}, c :: StridedVector{Float64})
+    m = length(c)
+    @inbounds begin
+        for jj in 1:n
+            for kk in 1:n
+                idx = abs(kk - jj) + 1
+                A[kk, jj] = idx <= m ? c[idx] : 0.0
+            end
+        end
+    end
+end
+
+@inline function my_fill_sym_toeplitz!(n::Integer, A :: AbstractMatrix{BigFloat}, c :: StridedVector{BigFloat})
+    m = length(c)
+    @inbounds begin
+        for jj in 1:n
+            for kk in 1:n
+                idx = abs(kk - jj) + 1
+                if idx <= m
+                    setvalue_BF!(A[kk, jj], c[idx])
+                else
+                    setzero!(A[kk, jj])
+                end
+            end
+        end
+    end
+end
+
+"""
     my_add_diag_elements!(n, A, val)
 
 Adds the value `val` to the diagonal elements of the matrix `A` of length `n`.
@@ -96,6 +152,21 @@ Sets the vector `A` equal to the elements of vector `B`.
     @inbounds begin
         for kk in 1:n
             setvalue_BF!(A[kk], B[kk])
+        end
+    end
+end
+
+"""
+    my_mat_setvalue!(n, A, B)
+
+Sets matrix `A` equal to matrix `B` for square `n x n` BigFloat matrices using in-place writes.
+"""
+@inline function my_mat_setvalue!(n::Integer, A :: AbstractMatrix{BigFloat}, B :: AbstractMatrix{BigFloat})
+    @inbounds begin
+        for jj in 1:n
+            for kk in 1:n
+                setvalue_BF!(A[kk, jj], B[kk, jj])
+            end
         end
     end
 end
@@ -165,4 +236,61 @@ end
 
 function setvalue_F!(z::BigFloat, x::Float64)
     ccall(("mpfr_set_d", Base.MPFR.libmpfr), Int32, (Ref{BigFloat}, Cdouble, Base.MPFR.MPFRRoundingMode), z, x, Base.MPFR.MPFRRoundNearest)
+end
+
+"""
+    my_add_vec!(n, A, B)
+
+Sets `A .= A .+ B` for vectors of length `n`.
+"""
+@inline function my_add_vec!(n::Integer, A :: StridedVector{BigFloat}, B :: StridedVector{BigFloat})
+    @inbounds begin
+        for kk in 1:n
+            my_add!(A[kk], A[kk], B[kk])
+        end
+    end
+end
+
+"""
+    my_add_scaled_vec!(n, A, scale, B)
+
+Sets `A .= A .+ scale .* B` for vectors of length `n`.
+"""
+@inline function my_add_scaled_vec!(n::Integer, A :: StridedVector{BigFloat}, scale :: BigFloat, B :: StridedVector{BigFloat})
+    @inbounds begin
+        for kk in 1:n
+            my_fma!(A[kk], A[kk], scale, B[kk])
+        end
+    end
+end
+
+"""
+    my_vec_demote!(n, A, B)
+
+Sets `A` equal to `B` with each element of `B` converted from `BigFloat` to `Float64`.
+"""
+@inline function my_vec_demote!(n::Integer, A :: StridedVector{Float64}, B :: StridedVector{BigFloat})
+    @inbounds begin
+        for kk in 1:n
+            A[kk] = Float64(B[kk])
+        end
+    end
+end
+
+"""
+    my_maxabs(n, x)
+
+Returns the infinity norm of vector `x` (maximum absolute value).
+"""
+@inline function my_maxabs(n::Integer, x :: StridedVector{BigFloat})
+    xm = abs(x[1])
+    @inbounds begin
+        for kk in 2:n
+            t = abs(x[kk])
+            if t > xm
+                xm = t
+            end
+        end
+    end
+    return xm
 end

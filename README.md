@@ -70,6 +70,147 @@ where `n` is the size of the matrix, `vc` is the first column of symmetric Toepl
     The tolerance factor up to which the error is computed, that is the error estimate is computed up to `tol_fact*eps(BigFloat)` where `BigFloat` has precision `Refinement_precision`
 
     <br />
+
+* `solve_mode :: Symbol = :fast`
+
+    Solve policy used for the correction system inside refinement.
+    - `:fast` uses `Float64` factorization/solves and promotes corrections to `BigFloat`
+    - `:robust` performs factorization/solves directly in `BigFloat`
+    - `:adaptive` starts in `:fast` and promotes a pair to `:robust` when progress stalls
+
+    <br />
+
+* `stall_ratio :: Float64 = 0.9`
+
+    For `solve_mode = :adaptive`, a pair is considered stalled when the relative residual reduction factor is greater than or equal to `stall_ratio` for consecutive iterations.
+
+    <br />
+
+* `stall_iters :: Integer = 3`
+
+    Number of consecutive stalled iterations before an adaptive pair is promoted from `:fast` to `:robust` mode.
+
+    <br />
+
+* `return_status :: Bool = false`
+
+    If `true`, `EigenRef` returns a third value `status` with per-eigenpair metadata: `mode_used`, `iterations_used`, `converged`, `promoted_iteration`, `precision_bits_used`, and `precision_escalated`.
+
+    <br />
+
+* `adaptive_precision_escalation :: Bool = false`
+
+    If `true` and `solve_mode = :adaptive`, unconverged pairs after base-precision refinement are retried in robust mode at higher precision. This keeps extra memory and compute focused on hard pairs only.
+
+    <br />
+
+* `escalation_precision :: Integer = 0`
+
+    Target precision in bits for escalated pairs. If set to `0`, the package uses `2*Refinement_precision`.
+
+    <br />
+
+* `escalation_extra_iter :: Integer = 10`
+
+    Maximum number of additional robust iterations used for escalated pairs.
+
+    <br />
+
+* `toeplitz_kernel :: Symbol = :auto`
+
+    Selects how residual/factorization base matrices are formed in refinement.
+    - `:auto` selects `:structured` only when matrix size is above `toeplitz_auto_threshold` and the matrix is Toeplitz (or `EigenRef(n, vc)` provides `vc`)
+    - `:dense` uses the dense matrix path
+    - `:structured` forces symmetric Toeplitz kernels (requires Toeplitz input or provided `vc`)
+
+    <br />
+
+* `toeplitz_auto_threshold :: Integer = 96`
+
+    Minimum matrix size where `toeplitz_kernel = :auto` considers switching to the structured Toeplitz path.
+
+    <br />
+
+* `reuse_toeplitz_cache :: Bool = true` (only for `EigenRef(n, vc)`)
+
+    Reuses a cached Toeplitz matrix when repeated calls use the same `n` and `vc`, avoiding matrix reconstruction overhead.
+
+    <br />
+
+* `tao_scale_init :: Bool = false`
+
+    Experimental Tao-identity scaling prototype for symmetric problems. If enabled, initial low-precision eigenvectors are rescaled before refinement.
+
+    <br />
+
+* `tao_check :: Bool = false`
+
+    Optional Tao-identity post-refinement diagnostic (requires `return_status = true`).
+    This does not change the refinement iterates; it only reports additional diagnostics.
+
+    <br />
+
+* `tao_gap_factor :: Float64 = 1e4`, `tao_max_pairs :: Integer = 10`
+
+    Safety/effort controls for Tao diagnostics and scaling prototypes.
+
+    <br />
+
+### Nonsymmetric API
+
+```julia
+vals, right_vecs, left_vecs = EigenRefNonSym(A)
+```
+
+or with explicit initial guesses:
+
+```julia
+vals, right_vecs, left_vecs = EigenRefNonSym(A, vals0, vecs0)
+```
+
+Use `return_status = true` to also return diagnostic status metadata per pair,
+including mode used, convergence, right/left residuals, backward/biorthogonality
+errors, condition proxies, clustering, and warnings for near-defective or
+unstable cases.
+
+### Tao Utility Functions
+
+```julia
+report = TaoIdentityReport(A, vals, vecs)
+scale_report = TaoScaleEigenvectors!(A, vals, vecs)
+comp = tao_component_magnitude_squared(A, vals, i, j)
+```
+
+These are experimental tools with safety gates for small spectral gaps and
+non-symmetric/non-Hermitian inputs.
+
+Implementation note: `tao_component_magnitude_squared` currently computes
+minor eigenvalues with `eigvals(Symmetric(Matrix{Float64}(...)))`, then
+lifts values back to `BigFloat` for product accumulation. This is a pragmatic
+compatibility path because dense `Matrix{BigFloat}` eigensolves are not
+available in this package's current standard-library-only setup.
+
+### Safety Gates and Known Failure Regimes
+
+* Symmetric path (`EigenRef`):
+
+    - `toeplitz_kernel = :structured` requires a symmetric Toeplitz input (or explicit Toeplitz first-column data). If this is not satisfied, the structured path is rejected.
+    - `toeplitz_kernel = :auto` safely falls back to dense mode when Toeplitz structure is not detected.
+    - `solve_mode = :adaptive` can promote stalled pairs to robust solves and, if enabled, to higher precision; this improves reliability but may increase runtime.
+
+* Nonsymmetric path (`EigenRefNonSym`):
+
+    - Guaranteed convergence is limited to diagonalizable, non-clustered target pairs.
+    - Clustered or near-defective spectra trigger Schur-block fallback and warning metadata.
+    - Strongly non-normal matrices are best-effort; monitor `condition_proxy`, residuals, and warnings.
+
+* Tao tools:
+
+    - Tao diagnostics/scaling are experimental and optional.
+    - Safety gates disable component checks when gap tests fail or when symmetry assumptions are violated.
+    - Current principal-minor eigensolves use a symmetric Float64 compatibility path.
+
+<br />
 ___
 ## Example
 
@@ -98,4 +239,44 @@ or
 ```julia
 julia> using Pkg
 julia> Pkg.test("SymToeplitzEigen")
+```
+
+## Performance Baseline
+
+To track runtime, allocations, and residual quality during optimization work, run:
+
+```julia
+julia --project -e 'include("test/perf_baseline.jl"); run_suite()'
+```
+
+For quicker local checks, pass smaller cases:
+
+```julia
+julia --project -e 'include("test/perf_baseline.jl"); run_suite(ns=(1000,), precs=(256,), repeats=1)'
+```
+
+To benchmark only the dense path, set kernels explicitly:
+
+```julia
+julia --project -e 'include("test/perf_baseline.jl"); run_suite(ns=(1000,), precs=(256,), kernels=(:dense,), repeats=1)'
+```
+
+## Phase 7 Release Gates
+
+Run the automated Phase 7 verification gates (steps 7.1 to 7.3):
+
+```julia
+julia --project test/phase7_release_gates.jl
+```
+
+This checks:
+
+- runtime and peak-RSS improvement at large `n` using baseline vs optimized symmetric configurations,
+- residual/backward quality plus reproducibility across thread counts,
+- nonsymmetric right/left residual, biorthogonality, and condition/warning reporting requirements.
+
+For a quicker local smoke run:
+
+```julia
+julia --project test/phase7_release_gates.jl --n-perf=1000 --n-quality=400 --max-iter=20 --threads=1,2
 ```
