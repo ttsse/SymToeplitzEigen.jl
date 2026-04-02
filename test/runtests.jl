@@ -166,6 +166,10 @@ end
     @test_throws ArgumentError EigenRef(A, solve_mode = :invalid_mode)
     @test_throws ArgumentError EigenRef(A, solve_mode = :adaptive, adaptive_precision_escalation = true, Refinement_precision = 128, escalation_precision = 64)
     @test_throws ArgumentError EigenRef(A, solve_mode = :adaptive, adaptive_precision_escalation = true, escalation_extra_iter = 0)
+
+    vals_prog, vecs_prog = EigenRef(A, Max_iter = 2, show_progress = true)
+    @test length(vals_prog) == n
+    @test size(vecs_prog) == size(A)
 end
 
 @testset "Toeplitz kernel and cache check" begin
@@ -254,6 +258,11 @@ end
     @test maximum(status.right_residual[conv_idx]) < 1e-20
     @test maximum(status.left_residual[conv_idx]) < 1e-20
     @test maximum(status.biorthogonality_error[conv_idx]) < 1e-20
+
+    vals_prog, xr_prog, xl_prog = EigenRefNonSym(A, Max_iter = 5, show_progress = true)
+    @test length(vals_prog) == size(A, 1)
+    @test size(xr_prog) == size(A)
+    @test size(xl_prog) == size(A)
 end
 
 @testset "Tao identity tools check" begin

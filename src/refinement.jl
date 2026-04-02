@@ -141,6 +141,7 @@ function Refinement(
     toeplitz_kernel :: Symbol = :auto,
     toeplitz_column = nothing,
     toeplitz_auto_threshold :: Integer = 96,
+    show_progress :: Bool = false,
 ) where T
     if !(solve_mode in (:fast, :robust, :adaptive))
         throw(ArgumentError("Invalid solve_mode=$(solve_mode). Expected one of :fast, :robust, or :adaptive."))
@@ -227,6 +228,7 @@ function Refinement(
     promoted_iteration = return_status ? zeros(Int64, m) : Int64[]
     precision_bits_used = return_status ? fill(Int64(Refinement_precision), m) : Int64[]
     precision_escalated = return_status ? falses(m) : BitVector()
+    progress_state = _progress_init(m; show=show_progress, label="Symmetric refinement")
 
     Threads.@threads :dynamic for ii in 1:m
         tid = Threads.threadid()
@@ -396,7 +398,11 @@ function Refinement(
                 mode_used[ii] = converged_pair ? :robust : :robust_maxiter
             end
         end
+
+        _progress_update!(progress_state)
     end
+
+    _progress_finish!(progress_state)
 
     if return_status
         status = (

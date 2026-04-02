@@ -167,7 +167,7 @@ function _two_sided_refine_pair(
 end
 
 """
-    EigenRefNonSym(A; Low_pres_type=Float64, Refinement_precision=256, Max_iter=40, tol_fact=1, cluster_gap_factor=1e3, damping=0.8, trust_radius=0.5, return_status=false)
+    EigenRefNonSym(A; Low_pres_type=Float64, Refinement_precision=256, Max_iter=40, tol_fact=1, cluster_gap_factor=1e3, damping=0.8, trust_radius=0.5, return_status=false, show_progress=false)
 
 Refines eigenpairs of a general real nonsymmetric matrix using two-sided iterative refinement.
 Returns `(vals, right_vecs, left_vecs)` and optionally `status`.
@@ -188,6 +188,7 @@ function EigenRefNonSym(
     damping::Float64=0.8,
     trust_radius::Float64=0.5,
     return_status::Bool=false,
+    show_progress::Bool=false,
 ) where {T <: Union{Float32, Float64, BigFloat}}
     A_low = Low_pres_type.(A)
     er = eigen(A_low)
@@ -209,6 +210,7 @@ function EigenRefNonSym(
         damping=damping,
         trust_radius=trust_radius,
         return_status=return_status,
+        show_progress=show_progress,
     )
 end
 
@@ -232,6 +234,7 @@ function EigenRefNonSym(
     damping::Float64=0.8,
     trust_radius::Float64=0.5,
     return_status::Bool=false,
+    show_progress::Bool=false,
 ) where {T <: Union{Float32, Float64, BigFloat}}
     n = size(A, 1)
     if size(A, 1) != size(A, 2)
@@ -277,6 +280,7 @@ function EigenRefNonSym(
         biorth_error = return_status ? fill(BigFloat(Inf), m) : BigFloat[]
         condition_proxy = return_status ? fill(BigFloat(Inf), m) : BigFloat[]
         warnings = return_status ? fill("", m) : String[]
+        progress_state = _progress_init(m; show=show_progress, label="Nonsymmetric refinement")
 
         gaps = _min_spectral_gaps(vals_init)
         cluster_tol = DT(cluster_gap_factor) * sqrt(eps(DT))
@@ -328,6 +332,7 @@ function EigenRefNonSym(
                     condition_proxy[ii] = norm(x, Inf) * norm(y, Inf)
                     warnings[ii] = "clustered spectrum; using Schur fallback"
                 end
+                _progress_update!(progress_state)
                 continue
             end
 
@@ -358,7 +363,11 @@ function EigenRefNonSym(
                 condition_proxy[ii] = condp
                 warnings[ii] = warn
             end
+
+            _progress_update!(progress_state)
         end
+
+        _progress_finish!(progress_state)
 
         if return_status
             status = (

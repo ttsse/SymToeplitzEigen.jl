@@ -98,6 +98,14 @@ where `n` is the size of the matrix, `vc` is the first column of symmetric Toepl
 
     <br />
 
+* `show_progress :: Bool = false`
+
+    If `true`, a live progress indicator is displayed while eigenpairs are refined.
+    If `ProgressMeter.jl` is already loaded in the active Julia session, it is
+    used automatically; otherwise a built-in text progress bar is shown.
+
+    <br />
+
 * `adaptive_precision_escalation :: Bool = false`
 
     If `true` and `solve_mode = :adaptive`, unconverged pairs after base-precision refinement are retried in robust mode at higher precision. This keeps extra memory and compute focused on hard pairs only.
@@ -172,6 +180,8 @@ Use `return_status = true` to also return diagnostic status metadata per pair,
 including mode used, convergence, right/left residuals, backward/biorthogonality
 errors, condition proxies, clustering, and warnings for near-defective or
 unstable cases.
+
+`show_progress = true` is also supported for `EigenRefNonSym`.
 
 ### Tao Utility Functions
 
@@ -259,6 +269,29 @@ To benchmark only the dense path, set kernels explicitly:
 
 ```julia
 julia --project -e 'include("test/perf_baseline.jl"); run_suite(ns=(1000,), precs=(256,), kernels=(:dense,), repeats=1)'
+```
+
+## Plan Benchmark Suite (Steps 1-34)
+
+To benchmark the major optimization tracks from the implementation plan
+(allocation/threading, solve policies, Toeplitz kernels/cache, Tao options,
+nonsymmetric path, and thread scalability), run:
+
+```julia
+julia --project test/plan_benchmarks.jl --preset=quick --threads=1,2
+```
+
+For a larger run closer to release-scale checks:
+
+```julia
+julia --project test/plan_benchmarks.jl --preset=full --threads=1,2,4 --repeats=2
+```
+
+The suite writes a CSV report to `test/benchmark_results/` by default.
+You can set an explicit output path:
+
+```julia
+julia --project test/plan_benchmarks.jl --preset=quick --threads=1,2 --out=test/benchmark_results/my_run.csv
 ```
 
 ## Phase 7 Release Gates
