@@ -213,7 +213,7 @@ are enabled.
     - Strongly non-normal matrices are best-effort; monitor `condition_proxy`, residuals, and warnings.
 
 <br />
-___
+
 ## Example
 
 ```julia
@@ -229,79 +229,4 @@ julia> nvals, nvecs = EigenRef(A);
 
 julia> maximum([norm((A - nvals[kk]I)*nvecs[:,kk]) for kk in 1:100])
 4.631891758490566668625685607982804238714754608769043250856766307722715870331231e-75
-```
-
-___
-## Testing
-After installation, run
-```julia
-pkg> test SymToeplitzEigen
-```
-or
-```julia
-julia> using Pkg
-julia> Pkg.test("SymToeplitzEigen")
-```
-
-## Performance Baseline
-
-To track runtime, allocations, and residual quality during optimization work, run:
-
-```julia
-julia --project -e 'include("test/perf_baseline.jl"); run_suite()'
-```
-
-For quicker local checks, pass smaller cases:
-
-```julia
-julia --project -e 'include("test/perf_baseline.jl"); run_suite(ns=(1000,), precs=(256,), repeats=1)'
-```
-
-To benchmark only the dense path, set kernels explicitly:
-
-```julia
-julia --project -e 'include("test/perf_baseline.jl"); run_suite(ns=(1000,), precs=(256,), kernels=(:dense,), repeats=1)'
-```
-
-## Plan Benchmark Suite (Steps 1-34)
-
-To benchmark the major optimization tracks from the implementation plan
-(allocation/threading, solve policies, Toeplitz kernels/cache,
-nonsymmetric path, and thread scalability), run:
-
-```julia
-julia --project test/plan_benchmarks.jl --preset=quick --threads=1,2
-```
-
-For a larger run closer to release-scale checks:
-
-```julia
-julia --project test/plan_benchmarks.jl --preset=full --threads=1,2,4 --repeats=2
-```
-
-The suite writes a CSV report to `test/benchmark_results/` by default.
-You can set an explicit output path:
-
-```julia
-julia --project test/plan_benchmarks.jl --preset=quick --threads=1,2 --out=test/benchmark_results/my_run.csv
-```
-
-## Phase 7 Release Gates
-
-Run the automated Phase 7 verification gates (steps 7.1 to 7.3):
-
-```julia
-julia --project test/phase7_release_gates.jl
-```
-
-This checks:
-
-- runtime and peak-RSS improvement at large `n` using baseline vs optimized symmetric configurations,
-- residual/backward quality plus reproducibility across thread counts,
-- nonsymmetric right/left residual, biorthogonality, and condition/warning reporting requirements.
-
-For a quicker local smoke run:
-
-```julia
-julia --project test/phase7_release_gates.jl --n-perf=1000 --n-quality=400 --max-iter=20 --threads=1,2
 ```
