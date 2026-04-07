@@ -14,7 +14,6 @@
 
 ## Installation
 
-In Julia 1.9
 ```julia
 pkg> add https://github.com/ttsse/SymToeplitzEigen.jl
 ```
