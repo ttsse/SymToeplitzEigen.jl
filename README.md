@@ -42,6 +42,19 @@ vals, vecs = EigenRef(n, vc)
 
 where `n` is the size of the matrix, `vc` is the first column of symmetric Toeplitz matrix.
 
+Also supported:
+
+```julia
+using SparseArrays
+A = spdiagm(-1 => fill(-1.0, 99), 0 => fill(2.0, 100), 1 => fill(-1.0, 99))
+vals, vecs = EigenRef(A)
+```
+
+If optional weak dependencies are loaded, `EigenRef` also dispatches directly on:
+
+- `ToeplitzMatrices.SymmetricToeplitz` / symmetric `ToeplitzMatrices.Toeplitz`
+- `BandedMatrices.AbstractBandedMatrix`
+
 <!-- #Refinement_precision :: Integer = 256, Max_iter :: Integer = 10, tol_fact :: Integer = 1 -->
 
 ### Optional keyword arguemnts:
@@ -145,22 +158,12 @@ where `n` is the size of the matrix, `vc` is the first column of symmetric Toepl
 
     <br />
 
-* `tao_scale_init :: Bool = false`
+* `sparse_solver :: Symbol = :auto` (sparse inputs only)
 
-    Experimental Tao-identity scaling prototype for symmetric problems. If enabled, initial low-precision eigenvectors are rescaled before refinement.
-
-    <br />
-
-* `tao_check :: Bool = false`
-
-    Optional Tao-identity post-refinement diagnostic (requires `return_status = true`).
-    This does not change the refinement iterates; it only reports additional diagnostics.
-
-    <br />
-
-* `tao_gap_factor :: Float64 = 1e4`, `tao_max_pairs :: Integer = 10`
-
-    Safety/effort controls for Tao diagnostics and scaling prototypes.
+    Selects refinement correction backend for sparse matrices.
+    - `:auto` uses sparse solves when matrix density is low and `solve_mode = :fast`
+    - `:sparse` forces sparse correction solves
+    - `:dense` forces dense fallback refinement
 
     <br />
 
@@ -183,22 +186,18 @@ unstable cases.
 
 `show_progress = true` is also supported for `EigenRefNonSym`.
 
-### Tao Utility Functions
+### Weak-Dependency Matrix Extensions
+
+The package uses Julia extensions (weak dependencies) for optional matrix ecosystems.
+To activate these methods, load the corresponding package in your session:
 
 ```julia
-report = TaoIdentityReport(A, vals, vecs)
-scale_report = TaoScaleEigenvectors!(A, vals, vecs)
-comp = tao_component_magnitude_squared(A, vals, i, j)
+using ToeplitzMatrices
+using BandedMatrices
 ```
 
-These are experimental tools with safety gates for small spectral gaps and
-non-symmetric/non-Hermitian inputs.
-
-Implementation note: `tao_component_magnitude_squared` currently computes
-minor eigenvalues with `eigvals(Symmetric(Matrix{Float64}(...)))`, then
-lifts values back to `BigFloat` for product accumulation. This is a pragmatic
-compatibility path because dense `Matrix{BigFloat}` eigensolves are not
-available in this package's current standard-library-only setup.
+Then calls like `EigenRef(SymmetricToeplitz(...))`, `EigenRef(BandedMatrix(...))`,
+are enabled.
 
 ### Safety Gates and Known Failure Regimes
 
@@ -213,12 +212,6 @@ available in this package's current standard-library-only setup.
     - Guaranteed convergence is limited to diagonalizable, non-clustered target pairs.
     - Clustered or near-defective spectra trigger Schur-block fallback and warning metadata.
     - Strongly non-normal matrices are best-effort; monitor `condition_proxy`, residuals, and warnings.
-
-* Tao tools:
-
-    - Tao diagnostics/scaling are experimental and optional.
-    - Safety gates disable component checks when gap tests fail or when symmetry assumptions are violated.
-    - Current principal-minor eigensolves use a symmetric Float64 compatibility path.
 
 <br />
 ___
@@ -274,7 +267,7 @@ julia --project -e 'include("test/perf_baseline.jl"); run_suite(ns=(1000,), prec
 ## Plan Benchmark Suite (Steps 1-34)
 
 To benchmark the major optimization tracks from the implementation plan
-(allocation/threading, solve policies, Toeplitz kernels/cache, Tao options,
+(allocation/threading, solve policies, Toeplitz kernels/cache,
 nonsymmetric path, and thread scalability), run:
 
 ```julia

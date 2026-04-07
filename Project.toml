@@ -1,16 +1,33 @@
 name = "SymToeplitzEigen"
 uuid = "3d553849-0536-4eb2-b845-3191e399a7ed"
-authors = ["David Meadon"]
 version = "1.0.0-DEV"
+authors = ["David Meadon"]
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+OhMyThreads = "67456a42-1dca-4109-a031-0a68de7e3ad5"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[weakdeps]
+BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+ToeplitzMatrices = "c751599d-da0a-543b-9d20-d0a503d91d24"
+
+[extensions]
+SymToeplitzEigenBandedMatricesExt = "BandedMatrices"
+SymToeplitzEigenFFTWExt = "FFTW"
+SymToeplitzEigenToeplitzMatricesExt = "ToeplitzMatrices"
 
 [compat]
+FFTW = "1"
+OhMyThreads = "0.8.5"
 julia = "1.9"
 
 [extras]
+BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+ToeplitzMatrices = "c751599d-da0a-543b-9d20-d0a503d91d24"
 
 [targets]
-test = ["Test"]
+test = ["Test", "BandedMatrices", "ToeplitzMatrices", "FFTW"]

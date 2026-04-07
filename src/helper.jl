@@ -10,6 +10,9 @@ function toeplitz(n :: Integer, vc :: Array{T, 1}, vr :: Array{T, 1}) where T <:
     return Tn
 end
 
+const _BIGFLOAT_MATVEC_BLOCK = 32
+const _BIGFLOAT_FILL_BLOCK = 32
+
 """
     normalize_Infnorm!(x)
 
@@ -53,10 +56,37 @@ Computes the matrix vector multiplication `R = -A*B` where `A` is a matrix and `
     @inbounds begin
         for kk in 1:n
             setzero!(R[kk])
-            for jj in 1:n
-                my_fma!(R[kk], R[kk], A[kk, jj], B[jj]) 
+            for j0 in 1:_BIGFLOAT_MATVEC_BLOCK:n
+                j1 = min(j0 + _BIGFLOAT_MATVEC_BLOCK - 1, n)
+                for jj in j0:j1
+                    my_fma!(R[kk], R[kk], A[kk, jj], B[jj])
+                end
             end
             neg!(R[kk])
+        end
+    end
+end
+
+"""
+    my_neg_sparse_mat_vec_mul!(n, R, A, x, x64, y64)
+
+Computes `R = -A*x` for sparse `A` while reusing Float64 workspaces.
+The inputs `x64` and `y64` are thread-local scratch vectors.
+"""
+@inline function my_neg_sparse_mat_vec_mul!(
+    n::Integer,
+    R :: StridedVector{BigFloat},
+    A :: SparseMatrixCSC{Float64, Ti},
+    x :: StridedVector{BigFloat},
+    x64 :: StridedVector{Float64},
+    y64 :: StridedVector{Float64},
+) where {Ti <: Integer}
+    my_vec_demote!(n, x64, x)
+    mul!(y64, A, x64)
+
+    @inbounds begin
+        for kk in 1:n
+            setvalue_F!(R[kk], -y64[kk])
         end
     end
 end
@@ -70,17 +100,51 @@ its first column `c`. If `length(c) < n`, trailing diagonals are treated as zero
 @inline function my_neg_sym_toeplitz_mat_vec!(n::Integer, R :: StridedVector{BigFloat}, c :: StridedVector{BigFloat}, x :: StridedVector{BigFloat})
     m = length(c)
     @inbounds begin
-        for kk in 1:n
-            setzero!(R[kk])
-            for jj in 1:n
-                idx = abs(kk - jj) + 1
-                if idx <= m
-                    my_fma!(R[kk], R[kk], c[idx], x[jj])
+        if m >= n
+            for kk in 1:n
+                setzero!(R[kk])
+                for j0 in 1:_BIGFLOAT_MATVEC_BLOCK:n
+                    j1 = min(j0 + _BIGFLOAT_MATVEC_BLOCK - 1, n)
+                    for jj in j0:j1
+                        my_fma!(R[kk], R[kk], c[abs(kk - jj) + 1], x[jj])
+                    end
                 end
+                neg!(R[kk])
             end
-            neg!(R[kk])
+        else
+            for kk in 1:n
+                setzero!(R[kk])
+                for j0 in 1:_BIGFLOAT_MATVEC_BLOCK:n
+                    j1 = min(j0 + _BIGFLOAT_MATVEC_BLOCK - 1, n)
+                    for jj in j0:j1
+                        idx = abs(kk - jj) + 1
+                        if idx <= m
+                            my_fma!(R[kk], R[kk], c[idx], x[jj])
+                        end
+                    end
+                end
+                neg!(R[kk])
+            end
         end
     end
+end
+
+"""
+    my_neg_sym_toeplitz_mat_vec_fft!(n, R, c, x, x64, fft_cache)
+
+Optional FFTW-backed Toeplitz mat-vec kernel for `R = -T*x`, where `c` is the
+Float64 first column of `T` and `x` is BigFloat. This method is provided by the
+FFTW extension when FFTW.jl is loaded.
+"""
+@inline function my_neg_sym_toeplitz_mat_vec_fft!(
+    n::Integer,
+    R :: AbstractVector{BigFloat},
+    c :: AbstractVector{<:Real},
+    x :: AbstractVector{BigFloat},
+    x64 :: AbstractVector{Float64},
+    fft_cache :: Base.RefValue,
+)
+    throw(ArgumentError("toeplitz_kernel=:fft requires FFTW.jl to be loaded. Add FFTW.jl and run `using FFTW` before calling EigenRef."))
 end
 
 """
@@ -92,10 +156,24 @@ If `length(c) < n`, trailing diagonals are filled with zeros.
 @inline function my_fill_sym_toeplitz!(n::Integer, A :: AbstractMatrix{Float64}, c :: StridedVector{Float64})
     m = length(c)
     @inbounds begin
-        for jj in 1:n
-            for kk in 1:n
-                idx = abs(kk - jj) + 1
-                A[kk, jj] = idx <= m ? c[idx] : 0.0
+        if m >= n
+            for j0 in 1:_BIGFLOAT_FILL_BLOCK:n
+                j1 = min(j0 + _BIGFLOAT_FILL_BLOCK - 1, n)
+                for jj in j0:j1
+                    for kk in 1:n
+                        A[kk, jj] = c[abs(kk - jj) + 1]
+                    end
+                end
+            end
+        else
+            for j0 in 1:_BIGFLOAT_FILL_BLOCK:n
+                j1 = min(j0 + _BIGFLOAT_FILL_BLOCK - 1, n)
+                for jj in j0:j1
+                    for kk in 1:n
+                        idx = abs(kk - jj) + 1
+                        A[kk, jj] = idx <= m ? c[idx] : 0.0
+                    end
+                end
             end
         end
     end
@@ -104,13 +182,27 @@ end
 @inline function my_fill_sym_toeplitz!(n::Integer, A :: AbstractMatrix{BigFloat}, c :: StridedVector{BigFloat})
     m = length(c)
     @inbounds begin
-        for jj in 1:n
-            for kk in 1:n
-                idx = abs(kk - jj) + 1
-                if idx <= m
-                    setvalue_BF!(A[kk, jj], c[idx])
-                else
-                    setzero!(A[kk, jj])
+        if m >= n
+            for j0 in 1:_BIGFLOAT_FILL_BLOCK:n
+                j1 = min(j0 + _BIGFLOAT_FILL_BLOCK - 1, n)
+                for jj in j0:j1
+                    for kk in 1:n
+                        setvalue_BF!(A[kk, jj], c[abs(kk - jj) + 1])
+                    end
+                end
+            end
+        else
+            for j0 in 1:_BIGFLOAT_FILL_BLOCK:n
+                j1 = min(j0 + _BIGFLOAT_FILL_BLOCK - 1, n)
+                for jj in j0:j1
+                    for kk in 1:n
+                        idx = abs(kk - jj) + 1
+                        if idx <= m
+                            setvalue_BF!(A[kk, jj], c[idx])
+                        else
+                            setzero!(A[kk, jj])
+                        end
+                    end
                 end
             end
         end
@@ -163,10 +255,54 @@ Sets matrix `A` equal to matrix `B` for square `n x n` BigFloat matrices using i
 """
 @inline function my_mat_setvalue!(n::Integer, A :: AbstractMatrix{BigFloat}, B :: AbstractMatrix{BigFloat})
     @inbounds begin
-        for jj in 1:n
-            for kk in 1:n
-                setvalue_BF!(A[kk, jj], B[kk, jj])
+        for j0 in 1:_BIGFLOAT_FILL_BLOCK:n
+            j1 = min(j0 + _BIGFLOAT_FILL_BLOCK - 1, n)
+            for jj in j0:j1
+                for kk in 1:n
+                    setvalue_BF!(A[kk, jj], B[kk, jj])
+                end
             end
+        end
+    end
+end
+
+"""
+    my_update_shifted_pivot_system!(n, B, lambda_prev, lambda_now, s, x)
+
+Updates a previously factorized linear system matrix in place when only the
+diagonal shift and replacement pivot column change.
+"""
+@inline function my_update_shifted_pivot_system!(
+    n::Integer,
+    B :: AbstractMatrix{Float64},
+    lambda_prev :: Float64,
+    lambda_now :: Float64,
+    s :: Integer,
+    x :: StridedVector{Float64},
+)
+    delta = lambda_prev - lambda_now
+    @inbounds begin
+        for kk in 1:n
+            B[kk, kk] += delta
+            B[kk, s] = -x[kk]
+        end
+    end
+end
+
+@inline function my_update_shifted_pivot_system!(
+    n::Integer,
+    B :: AbstractMatrix{BigFloat},
+    lambda_prev :: BigFloat,
+    lambda_now :: BigFloat,
+    s :: Integer,
+    x :: StridedVector{BigFloat},
+)
+    delta = lambda_prev - lambda_now
+    @inbounds begin
+        for kk in 1:n
+            my_add!(B[kk, kk], B[kk, kk], delta)
+            setvalue_BF!(B[kk, s], x[kk])
+            neg!(B[kk, s])
         end
     end
 end

@@ -1,6 +1,9 @@
 using SymToeplitzEigen
 using Test
 using LinearAlgebra
+using SparseArrays
+using BandedMatrices
+using ToeplitzMatrices
 
 # Check whether the non-allocating helper functions
 # are performing as expected
@@ -217,6 +220,32 @@ end
     @test_throws ArgumentError EigenRef(A, toeplitz_kernel = :auto, toeplitz_auto_threshold = 0)
 end
 
+@testset "Sparse and extension matrix support check" begin
+    n = 80
+    A_sparse = spdiagm(-1 => fill(-1.0, n - 1), 0 => fill(2.0, n), 1 => fill(-1.0, n - 1))
+    A_dense = Matrix(A_sparse)
+
+    vals_sp, vecs_sp, status_sp = EigenRef(A_sparse, return_status = true, Max_iter = 4, sparse_solver = :sparse)
+    @test length(vals_sp) == n
+    @test size(vecs_sp) == (n, n)
+    @test status_sp.sparse_solver_used == :sparse
+    @test maximum(norm((A_dense - vals_sp[kk]I) * vecs_sp[:, kk], Inf) for kk in 1:n) < 1e4*eps(Float64)
+
+    c = zeros(Float64, n)
+    c[1] = 2.0
+    c[2] = -1.0
+    Tm = SymmetricToeplitz(c)
+    vals_toep, vecs_toep = EigenRef(Tm, Max_iter = 4)
+    vals_dense_ref, vecs_dense_ref = EigenRef(SymToeplitzEigen.toeplitz(n, [2.0, -1.0], [2.0, -1.0]), Max_iter = 4)
+    @test norm(vals_toep - vals_dense_ref, Inf) < 1e10*eps(BigFloat)
+    @test norm(abs.(normalize(vecs_toep)) - abs.(normalize(vecs_dense_ref)), Inf) < 1e10*eps(BigFloat)
+
+    Bm = BandedMatrix(A_dense, (1, 1))
+    vals_band, vecs_band, status_band = EigenRef(Bm, return_status = true, Max_iter = 4, banded_backend = :sparse)
+    @test status_band.sparse_solver_used in (:sparse, :dense)
+    @test maximum(norm((A_dense - vals_band[kk]I) * vecs_band[:, kk], Inf) for kk in 1:n) < 1e4*eps(Float64)
+end
+
 @testset "Nonsymmetric refinement check" begin
     A = [2.0 1.0 0.0;
          0.0 3.0 1.0;
@@ -263,31 +292,6 @@ end
     @test length(vals_prog) == size(A, 1)
     @test size(xr_prog) == size(A)
     @test size(xl_prog) == size(A)
-end
-
-@testset "Tao identity tools check" begin
-    v = [2.0, -1.0]
-    n = 24
-    A = SymToeplitzEigen.toeplitz(n, v, v)
-    vals, vecs = eigen(A)
-
-    comp = tao_component_magnitude_squared(A, vals, 3, 2)
-    @test !isnothing(comp)
-
-    report = TaoIdentityReport(A, vals, vecs, max_pairs = 6, max_components = 2)
-    @test report.enabled
-    @test report.checked_pairs >= 1
-    @test report.checked_components >= 1
-
-    vecs_scaled = copy(vecs)
-    scale_report = TaoScaleEigenvectors!(A, vals, vecs_scaled, max_pairs = 6)
-    @test scale_report.scaled_pairs >= 1
-
-    nvals, nvecs, status = EigenRef(A, return_status = true, tao_check = true, tao_scale_init = true, tao_max_pairs = 6, Max_iter = 3)
-    @test haskey(status, :tao_report)
-    @test haskey(status, :tao_init_report)
-
-    @test_throws ArgumentError EigenRef(A, tao_check = true, return_status = false)
 end
 
 # Check using both low precision types that we approach the correct eigenvalues

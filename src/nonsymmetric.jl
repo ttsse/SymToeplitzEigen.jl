@@ -254,16 +254,14 @@ function EigenRefNonSym(
         vals_init = Complex{DT}.(vals0)
         right_init = Complex{DT}.(vecs0)
 
-        left_init = nothing
-        if isnothing(left_vecs0)
+        left_init = if isnothing(left_vecs0)
             el = eigen(adjoint(ComplexF64.(A)))
-            left_init = _match_left_vectors(ComplexF64.(vals0), ComplexF64.(el.values), ComplexF64.(el.vectors))
-            left_init = Complex{DT}.(left_init)
+            Complex{DT}.(_match_left_vectors(ComplexF64.(vals0), ComplexF64.(el.values), ComplexF64.(el.vectors)))
         else
             if size(left_vecs0, 1) != n || size(left_vecs0, 2) != length(vals0)
                 throw(ArgumentError("left_vecs0 dimensions must match A and vals0"))
             end
-            left_init = Complex{DT}.(left_vecs0)
+            Complex{DT}.(left_vecs0)
         end
 
         m = length(vals_init)
@@ -292,10 +290,9 @@ function EigenRefNonSym(
         schur_vecs = Complex{DT}.(S.Z)
 
         SL = schur(adjoint(ComplexF64.(A)))
-        schur_left = _match_left_vectors(ComplexF64.(S.values), ComplexF64.(SL.values), ComplexF64.(SL.vectors))
-        schur_left = Complex{DT}.(schur_left)
+        schur_left = Complex{DT}.(_match_left_vectors(ComplexF64.(S.values), ComplexF64.(SL.values), ComplexF64.(SL.vectors)))
 
-        Threads.@threads :dynamic for ii in 1:m
+        function _refine_nonsym_index!(ii)
             λ0 = vals_init[ii]
             x0 = copy(view(right_init, :, ii))
             y0 = copy(view(left_init, :, ii))
@@ -333,7 +330,7 @@ function EigenRefNonSym(
                     warnings[ii] = "clustered spectrum; using Schur fallback"
                 end
                 _progress_update!(progress_state)
-                continue
+                return nothing
             end
 
             λ, x, y, iter, ok, mode, rr, rl, berr, bierr, condp, warn = _two_sided_refine_pair(
@@ -365,6 +362,15 @@ function EigenRefNonSym(
             end
 
             _progress_update!(progress_state)
+            return nothing
+        end
+
+        let left_init = left_init, schur_left = schur_left
+            OhMyThreads.@tasks for ii in 1:m
+                OhMyThreads.@set scheduler = :dynamic
+                OhMyThreads.@set ntasks = Threads.nthreads()
+                _refine_nonsym_index!(ii)
+            end
         end
 
         _progress_finish!(progress_state)
