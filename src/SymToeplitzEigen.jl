@@ -74,12 +74,16 @@ Convenience function that will construct the symmetric Toeplitz matrix of size n
     function _Eigen(Tn :: Array{T}, Refinement_precision :: Integer, Max_iter :: Integer, tol_fact :: Integer; solve_mode :: Symbol = :fast, stall_ratio :: Float64 = 0.9, stall_iters :: Integer = 3, return_status :: Bool = false, adaptive_precision_escalation :: Bool = false, escalation_precision :: Integer = 0, escalation_extra_iter :: Integer = 10, toeplitz_kernel :: Symbol = :auto, toeplitz_column = nothing, toeplitz_auto_threshold :: Integer = 96, show_progress :: Bool = false) where {T <: Union{Float64, Float32}}
 
         vals, vecs = eigen(Tn)
-
+        blas_threads = BLAS.get_num_threads()
+        BLAS.set_num_threads(1) # Ensure single-threaded BLAS for refinement steps
         if return_status
-            return Refinement(Tn, vals, vecs, Refinement_precision, Max_iter, tol_fact; solve_mode=solve_mode, stall_ratio=stall_ratio, stall_iters=stall_iters, return_status=true, adaptive_precision_escalation=adaptive_precision_escalation, escalation_precision=escalation_precision, escalation_extra_iter=escalation_extra_iter, toeplitz_kernel=toeplitz_kernel, toeplitz_column=toeplitz_column, toeplitz_auto_threshold=toeplitz_auto_threshold, show_progress=show_progress)
+            result = Refinement(vals, vecs, Refinement_precision, Max_iter, tol_fact; solve_mode=solve_mode, stall_ratio=stall_ratio, stall_iters=stall_iters, return_status=true, adaptive_precision_escalation=adaptive_precision_escalation, escalation_precision=escalation_precision, escalation_extra_iter=escalation_extra_iter, toeplitz_kernel=toeplitz_kernel, toeplitz_column=toeplitz_column, toeplitz_auto_threshold=toeplitz_auto_threshold, show_progress=show_progress)
+            BLAS.set_num_threads(blas_threads) # Restore original BLAS threading
+            return result
         end
-
-        return Refinement(Tn, vals, vecs, Refinement_precision, Max_iter, tol_fact; solve_mode=solve_mode, stall_ratio=stall_ratio, stall_iters=stall_iters, return_status=false, adaptive_precision_escalation=adaptive_precision_escalation, escalation_precision=escalation_precision, escalation_extra_iter=escalation_extra_iter, toeplitz_kernel=toeplitz_kernel, toeplitz_column=toeplitz_column, toeplitz_auto_threshold=toeplitz_auto_threshold, show_progress=show_progress)
+        result = Refinement(Tn, vals, vecs, Refinement_precision, Max_iter, tol_fact; solve_mode=solve_mode, stall_ratio=stall_ratio, stall_iters=stall_iters, return_status=false, adaptive_precision_escalation=adaptive_precision_escalation, escalation_precision=escalation_precision, escalation_extra_iter=escalation_extra_iter, toeplitz_kernel=toeplitz_kernel, toeplitz_column=toeplitz_column, toeplitz_auto_threshold=toeplitz_auto_threshold, show_progress=show_progress)
+        BLAS.set_num_threads(blas_threads) # Restore original BLAS threading
+        return result
     end
 
 

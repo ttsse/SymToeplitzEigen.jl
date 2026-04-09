@@ -193,6 +193,8 @@ function EigenRef(
     n = size(A, 1)
 
     vals0, vecs0 = eigen(Symmetric(Matrix(Low_pres_type.(A))))
+    BLAS_treads = BLAS.get_num_threads()
+    BLAS.set_num_threads(1) # Ensure single-threaded BLAS for refinement steps
 
     vals = Float64.(vals0)
     vecs = Float64.(vecs0)
@@ -229,10 +231,10 @@ function EigenRef(
                     sparse_bandwidth_ratio=bandwidth_ratio,
                 ),
             )
+            BLAS.set_num_threads(BLAS_treads) # Restore original BLAS threading
             return nvals, nvecs, status_with_meta
         end
-
-        return RefinementSparseFast(
+        result = RefinementSparseFast(
             A64,
             vals,
             vecs,
@@ -242,6 +244,8 @@ function EigenRef(
             return_status=false,
             show_progress=show_progress,
         )
+        BLAS.set_num_threads(BLAS_treads) # Restore original BLAS threading
+        return result
     end
 
     A_dense = Matrix{Float64}(A)
@@ -272,11 +276,11 @@ function EigenRef(
                 sparse_bandwidth_ratio=bandwidth_ratio,
             ),
         )
-
+        BLAS.set_num_threads(BLAS_treads) # Restore original BLAS threading
         return nvals, nvecs, status_with_meta
     end
 
-    return Refinement(
+    result = Refinement(
         A_dense,
         vals,
         vecs,
@@ -293,6 +297,8 @@ function EigenRef(
         toeplitz_kernel=:dense,
         show_progress=show_progress,
     )
+    BLAS.set_num_threads(BLAS_treads) # Restore original BLAS threading
+    return result
 end
 
 EigenRefSparse(A::SparseMatrixCSC; kwargs...) = EigenRef(A; kwargs...)
