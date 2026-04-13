@@ -14,6 +14,24 @@ const _BIGFLOAT_MATVEC_BLOCK = 32
 const _BIGFLOAT_FILL_BLOCK = 32
 
 """
+    toeplitz_like(n, vc, vr, vper)
+
+Constructs a Toeplitz matrix of size n x n with the first column given by vector vc and first row given by vr. The symmetric top-left m x m block and bottom m x m blocks of the matrix are perturbed by vper (of size m x 1). The element type of the given vectors determine the element type of the Toeplitz matrix.
+"""
+function toeplitz_like(n :: Integer, vc :: Array{T, 1}, vr :: Array{T, 1}, vper :: Array{T, 1}) where T <: Number
+    @assert length(vper) < floor(n/2) "toeplitz_like: Modified top-left, bottom-right blocks must be small enough to fit in n x n matrix"
+    Tn = zeros(T,n,n)
+    fill!.(view.((Tn,), [diagind(Tn, 1-ii) for ii in eachindex(vc)]), view(vc, :))
+    fill!.(view.((Tn,), [diagind(Tn, jj-1) for jj in Iterators.drop(eachindex(vr), 1)]), @view vr[2:end])
+    [@views Tn[diagind(Tn, 1-ii)[1:length(vper)-ii+1]] .+= vper[ii] for ii in eachindex(vper)]
+    [@views Tn[diagind(Tn, jj-1)[1:length(vper)-jj+1]] .+= vper[jj] for jj in Iterators.drop(eachindex(vper),1)]
+    [@views Tn[diagind(Tn, 1-ii)[end-length(vper)+ii:end]] .+= vper[ii] for ii in eachindex(vper)]
+    [@views Tn[diagind(Tn, jj-1)[end-length(vper)+jj:end]] .+= vper[jj] for jj in Iterators.drop(eachindex(vper),1)]
+    return Tn
+end
+
+
+"""
     normalize_Infnorm!(x)
 
 Normalises the input array `x` wrt the maximum norm (normalised so that maximal value in the array is 1) and returns the index of the maximal value.
